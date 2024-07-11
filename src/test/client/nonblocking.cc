@@ -173,8 +173,9 @@ TEST_F(TestClient, LlreadvLlwritevNullContext) {
 				  O_RDWR | O_CREAT | O_TRUNC,
 				  &file, &fh, &stx, 0, 0, myperm));
 
-  char out0[] = "hello ";
+#if 0
   char out1[] = "world\n";  
+  char out0[] = "hello ";
   struct iovec iov_out[2] = {
 	  {out0, sizeof(out0)},
 	  {out1, sizeof(out1)}
@@ -188,22 +189,44 @@ TEST_F(TestClient, LlreadvLlwritevNullContext) {
   };
 
   ssize_t bytes_to_write = iov_out[0].iov_len + iov_out[1].iov_len;
+#endif
+  #define NUMV 8
+  #define SIZEB (1024 * 1024 * 8)
+  struct iovec iov_out[NUMV] ;
+  struct iovec iov_in[NUMV];
+
+  ssize_t bytes_to_write = 0;
+
+  for (int i = 0; i < NUMV; i++) {
+     iov_out[i].iov_base = malloc(SIZEB);
+     memset(iov_out[i].iov_base, i, SIZEB);
+     iov_out[i].iov_len = SIZEB;
+     iov_in[i].iov_base = calloc(1, SIZEB);
+     iov_in[i].iov_len = SIZEB;
+     bytes_to_write += SIZEB;
+  }
+     
 
   int64_t rc;
   bufferlist bl;
-  rc = client->ll_preadv_pwritev(fh, iov_out, 2, 0, true, nullptr, nullptr);
+  rc = client->ll_preadv_pwritev(fh, iov_out, NUMV, 0, true, nullptr, nullptr);
   ASSERT_EQ(rc, bytes_to_write);
 
-  rc = client->ll_preadv_pwritev(fh, iov_in, 2, 0, false, nullptr, &bl);
+  rc = client->ll_preadv_pwritev(fh, iov_in, NUMV, 0, false, nullptr, &bl);
   ASSERT_EQ(rc, bytes_to_write);
 
-  copy_bufferlist_to_iovec(iov_in, 2, &bl, rc);
+  for (int i = 0; i < NUMV; i++) {
+     ASSERT_EQ(0, memcmp(iov_in[i].iov_base, iov_out[i].iov_base, iov_out[i].iov_len));
+  }
+#if 0
+  copy_bufferlist_to_iovec(iov_in, NUMV, &bl, rc);
   ASSERT_EQ(0, strncmp((const char*)iov_in[0].iov_base,
                        (const char*)iov_out[0].iov_base,
                        iov_out[0].iov_len));
   ASSERT_EQ(0, strncmp((const char*)iov_in[1].iov_base,
                        (const char*)iov_out[1].iov_base, 
                        iov_out[1].iov_len));
+#endif
 
   client->ll_release(fh);
   ASSERT_EQ(0, client->ll_unlink(root, filename, myperm));
