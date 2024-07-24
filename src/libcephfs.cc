@@ -2105,6 +2105,10 @@ extern "C" void ceph_ll_readv_writev(class ceph_mount_info *cmount,
 {
   ceph_ll_readv_writev_buffer *buf = new ceph_ll_readv_writev_buffer;
 
+  if (!io_info->write && io_info->zerocopy) {
+    ceph_assert(io_info->iovcnt == 1);
+  }
+
   io_info->result = (cmount->get_client()->ll_preadv_pwritev(
 			io_info->fh, io_info->iov, io_info->iovcnt,
 			io_info->off, io_info->write, nullptr, &buf->bl,
